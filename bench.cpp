@@ -99,9 +99,18 @@ CSR* read_csr_from_file(std::string path) {
         end = input.find(" ", start);
         int col = std::stoi(input.substr(start, end - start)) - 1;
         double val = (double) std::stoi(input.substr(end + 1));
-        std::cout << row << " " << col << ": " << val << std::endl; 
+        rows[i] = row;
+        cols[i] = col;
+        vals[i] = val;
     }
-    return NULL;
+
+    CSR* csr = (CSR*) malloc(sizeof(CSR));
+    new_csr(csr, nnz, nrows, ncols, rows, cols, vals);
+
+    delete[] rows;
+    delete[] cols;
+    delete[] vals;
+    return csr;
 }
 
 // Prints a square matrix given by a double array
@@ -134,18 +143,21 @@ void run_A_mul_B_benches(long size) {
     #endif
 
     CSR* csr = read_csr_from_file("/data/excape/excape_v4/side_info/ecfp_counts_full.mtx");
-    double* vec = generate_random_vector(size);
-    double* out = new double[size];
+    double* vec = generate_random_vector(csr->ncol);
+    double* out = new double[csr->nrow];
 
     bench_base_A_mul_B(out, csr, vec);
 
-    Eigen::VectorXd eigen_vec = Eigen::Map<Eigen::VectorXd>(vec, size);
+    Eigen::VectorXd eigen_vec = Eigen::Map<Eigen::VectorXd>(vec, csr->ncol);
     Eigen::SparseMatrix<double, Eigen::RowMajor>* eigen_csr = csr_to_eigen(csr);
 
     Eigen::VectorXd eigen_out = bench_eigen_A_mul_B(eigen_csr, &eigen_vec);
 
+    mkl_csr mkl_sparse = csr_to_mkl(csr);
+    bench_mkl_A_mul_B(out, mkl_sparse, vec);
+
     #ifndef BENCH
-        std::cout << (compare_vectors(out, eigen_out.data(), size) ? "CORRECT" : "WRONG") << std::endl;
+        std::cout << (compare_vectors(out, eigen_out.data(), csr->nrow) ? "CORRECT" : "WRONG") << std::endl;
     #endif
 
     delete[] vec;
@@ -199,14 +211,18 @@ void bench_base_A_mul_B(double* y, struct CSR* A, double* x) {
         std::cout << "START BASE CALCULATION" << "\n";
     #endif
 
-    double stime = omp_get_wtime();
-    base_A_mul_B(y, A, x);
-    double etime = omp_get_wtime();
+    double total_time = 0;
+    for (size_t i = 0; i < NR_ITERATIONS; i++) {
+        double stime = omp_get_wtime();
+        base_A_mul_B(y, A, x);
+        double etime = omp_get_wtime();
+        total_time += etime - stime;
+    }
 
     #ifndef BENCH
-        std::cout << "BASE DURATION: " << etime - stime << "\n" << std::endl;
+        std::cout << "BASE DURATION: " << total_time << "\n" << std::endl;
     #else
-        std::cout << etime - stime << ";";
+        std::cout << total_time << ";";
     #endif
 }
 
@@ -215,14 +231,19 @@ Eigen::VectorXd bench_eigen_A_mul_B(Eigen::SparseMatrix<double, Eigen::RowMajor>
         std::cout << "START EIGEN CALCULATION" << "\n";
     #endif
 
-    double stime = omp_get_wtime();
-    Eigen::VectorXd out_eigen = (*eigen_sparse) * (*eigen_vec);
-    double etime = omp_get_wtime();
+    Eigen::VectorXd out_eigen;
+    double total_time = 0;
+    for (size_t i = 0; i < NR_ITERATIONS; i++) {
+        double stime = omp_get_wtime();
+        Eigen::VectorXd out_eigen = (*eigen_sparse) * (*eigen_vec);
+        double etime = omp_get_wtime();
+        total_time += etime - stime;
+    }
 
     #ifndef BENCH
-        std::cout << "EIGEN DURATION: " << etime - stime << "\n" << std::endl;
+        std::cout << "EIGEN DURATION: " << total_time << "\n" << std::endl;
     #else
-            std::cout << etime - stime << ";";
+            std::cout << total_time << ";";
     #endif
 
     return out_eigen;

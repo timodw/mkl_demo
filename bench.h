@@ -6,7 +6,7 @@
 #include "LibFastSparseDependency.h"
 #include "matrix_operations.h"
 
-#define NR_ITERATIONS 100
+#define NR_ITERATIONS 1000
 
 double* generate_random_vector(long size);
 double* generate_random_matrix(long size);
