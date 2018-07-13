@@ -1,3 +1,3 @@
 #!/bin/bash
 
-icc -Wall -O3 -g -I /opt/lynx/software/Eigen/3.3.4/easybuild/Eigen-3.3.4-easybuild-devel -qopenmp main.cpp
+icc -Wall -O3 -g -I eigen-git-mirror -qopenmp -mkl matrix_operations.cpp bench.cpp main.cpp
