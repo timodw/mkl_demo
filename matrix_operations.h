@@ -16,6 +16,8 @@ typedef struct {
 void base_A_mul_B(double* y, struct CSR *A, double* x);
 void base_A_mul_Bn(double* Y, struct CSR *A, double* X, const int ncol);
 
+void base_bcsr_A_mul_B(double* y, struct BinaryCSR *A, double* x);
+
 void mkl_A_mul_B(double* y, mkl_csr A, double* x);
 void mkl_A_mul_Bn(double* Y, mkl_csr A, double* X, const int ncol);
 

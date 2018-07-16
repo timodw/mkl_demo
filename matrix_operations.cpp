@@ -36,6 +36,21 @@ mkl_csr csr_to_mkl(CSR* csr) {
     return sparse_mkl;
 }
 
+void bcsr_to_csr(CSR* csr, BinaryCSR* bcsr) {
+    csr->nrow = bcsr->nrow;
+    csr->ncol = bcsr->ncol;
+    csr->nnz = bcsr->nnz;
+    csr->row_ptr = (int*) malloc((bcsr->nrow + 1) * sizeof(int));
+    csr->cols = (int*) malloc(bcsr->nnz * sizeof(int));
+    csr->vals = (double*) malloc(bcsr->nnz * sizeof(double));
+
+    memcpy(csr->row_ptr, bcsr->row_ptr, (bcsr->nrow + 1) * sizeof(int));
+    memcpy(csr->cols, bcsr->cols, bcsr->nnz * sizeof(int));
+    for (size_t i = 0; i < bcsr->nnz; i++) {
+        csr->vals[i] = 1.0;
+    }
+}
+
  /** y = A * x */
 void base_A_mul_B(double* y, struct CSR *A, double* x) {
    int* row_ptr = A->row_ptr;
@@ -83,6 +98,22 @@ void base_A_mul_Bn(double* Y, struct CSR *A, double* X, const int ncol) {
      free(tmp);
    }
  }
+
+void base_bcsr_A_mul_B(double* y, struct BinaryCSR *A, double* x) 
+{
+   int* row_ptr = A->row_ptr;
+   int* cols    = A->cols;
+   #pragma omp parallel for schedule(dynamic, 256)
+   for (int row = 0; row < A->nrow; row++) {
+     double tmp = 0;
+     const int end = row_ptr[row + 1];
+     for (int i = row_ptr[row]; i < end; i++) {
+       tmp += x[cols[i]];
+     }
+     y[row] = tmp;
+   }
+ }
+
 
 void mkl_A_mul_B(double* y, mkl_csr A, double* x) {
     char transa = 'N';

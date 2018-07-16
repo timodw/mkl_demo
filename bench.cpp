@@ -113,6 +113,42 @@ CSR* read_csr_from_file(std::string path) {
     return csr;
 }
 
+BinaryCSR* read_bcsr_from_file(std::string path) {
+    std::ifstream fh(path);
+    std::string input;
+    getline(fh, input);
+    getline(fh, input);
+    getline(fh, input);
+
+    // Read nrows, ncols and nnz
+    int start = 0;
+    int end = input.find(" ");
+    int nrows = std::stoi(input.substr(start, end - start));
+    start = end + 1;
+    end = input.find(" ", start);
+    int ncols = std::stoi(input.substr(start, end - start));
+    int nnz = std::stoi(input.substr(end + 1));
+
+    int* rows = new int[nnz];
+    int* cols = new int[nnz];
+    for (size_t i = 0; i < nnz; i++) {
+        getline(fh, input);
+        start = 0;
+        end = input.find(" ");
+        int row = std::stoi(input.substr(start, end - start)) - 1;
+        int col = std::stoi(input.substr(end + 1)) - 1;
+        rows[i] = row;
+        cols[i] = col;
+    }
+
+    BinaryCSR* bcsr = (BinaryCSR*) malloc(sizeof(BinaryCSR));
+    new_bcsr(bcsr, nnz, nrows, ncols, rows, cols);
+
+    delete[] rows;
+    delete[] cols;
+    return bcsr;
+}
+
 // Prints a square matrix given by a double array
 void print_matrix(double* mat, long size) {
     std::cout << std::setw(5) << std::setprecision(2);
@@ -142,11 +178,13 @@ void run_A_mul_B_benches(long size) {
         std::cout << Eigen::nbThreads() << ";" << mat_size << ";";
     #endif
 
-    CSR* csr = read_csr_from_file("/data/excape/excape_v4/side_info/ecfp_counts_full.mtx");
+    BinaryCSR* bcsr = read_bcsr_from_file("/data/excape/excape_v4/side_info/ecfp_binary_full.mtx");
+    CSR* csr = (CSR*) malloc(sizeof(CSR));
+    bcsr_to_csr(csr, bcsr);
     double* vec = generate_random_vector(csr->ncol);
     double* out = new double[csr->nrow];
 
-    bench_base_A_mul_B(out, csr, vec);
+    bench_base_A_mul_B(out, bcsr, vec);
 
     Eigen::VectorXd eigen_vec = Eigen::Map<Eigen::VectorXd>(vec, csr->ncol);
     Eigen::SparseMatrix<double, Eigen::RowMajor>* eigen_csr = csr_to_eigen(csr);
@@ -164,7 +202,9 @@ void run_A_mul_B_benches(long size) {
     delete[] out;
     delete eigen_csr;
     free_csr(csr);
+    free_bcsr(bcsr);
     free(csr);
+    free(bcsr);
 }
 
 void run_A_mul_Bn_benches(long mat_size) {
@@ -206,7 +246,7 @@ void run_A_mul_Bn_benches(long mat_size) {
     free(csr);
 }
 
-void bench_base_A_mul_B(double* y, struct CSR* A, double* x) {
+void bench_base_A_mul_B(double* y, struct BinaryCSR* A, double* x) {
     #ifndef BENCH
         std::cout << "START BASE CALCULATION" << "\n";
     #endif
@@ -214,7 +254,7 @@ void bench_base_A_mul_B(double* y, struct CSR* A, double* x) {
     double total_time = 0;
     for (size_t i = 0; i < NR_ITERATIONS; i++) {
         double stime = omp_get_wtime();
-        base_A_mul_B(y, A, x);
+        base_bcsr_A_mul_B(y, A, x);
         double etime = omp_get_wtime();
         total_time += etime - stime;
     }
